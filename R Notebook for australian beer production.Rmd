@@ -1,0 +1,471 @@
+---
+title: "R Notebook for australian beer production"
+output:
+  html_document:
+    df_print: paged
+    toc: true
+    toc_float:
+      collapsed: false
+      smooth_scroll: true
+    number_sections: true
+---
+
+Let us forecast quarterly australian beer production.
+
+```{r, warning=FALSE,message=FALSE}
+library(ggplot2);library(ggthemes);library(gridExtra)  # For plots 
+library(quantmod);library(xts);library(zoo) # For using xts class objects
+library(forecast) # Set of forecasting functions
+library(fpp); library(fpp2) # Datasets from Forecasting text by Rob Hyndman
+library(tseries) # for a statistical test
+library(dplyr) # Data wrangling
+```
+
+## Simple Forecasting Methods
+
+```{r}
+ausbeer
+```
+
+Split the data into train and test. Since the test data contains 42 quarters, we will be constructing forecasts for 42 periods.
+
+```{r}
+train = window(ausbeer,end=c(1999,04))
+test = window(ausbeer, start=c(2000,01))
+length(test)
+```
+
+### Naive Method
+Future will be the same as the last observation Since this is the best prediction for a random walk, these are also called random walk forecasts
+
+#### Model and Forecast
+```{r}
+naive_model = naive(train,h=42)
+```
+
+#### Accuracy
+```{r}
+accuracy(naive_model,x=ausbeer)
+```
+
+### Average Method
+A very simple prediction, often the baseline in linear regression, is to use the average.
+
+#### Model and Forecast
+```{r}
+average_model = meanf(train,h = 42)
+average_model
+```
+
+#### Accuracy
+
+Let us examine the accuracy of the above prediction from average_model on the train sample. accuracy() from library(forecast) is a handy function that automatically computes a set of error indices.
+
+```{r}
+accuracy(average_model)
+```
+
+Let us examine the accuracy on the test sample. To get test-set performance, set the x argument as the entire dataset rather than just the test set.
+
+```{r}
+accuracy(average_model,x = ausbeer)
+```
+
+#### Visualize Forecast
+
+```{r}
+autoplot(train)+
+  autolayer(average_model,PI = F,size=1.1,series = 'Average Model')+
+  autolayer(test)
+```
+
+### Seasonal Naive Method
+
+#### Model and Forecast
+
+```{r}
+seasonal_naive_model = snaive(train,h=42)
+seasonal_naive_model
+```
+
+#### Accuracy
+
+```{r}
+accuracy(seasonal_naive_model,x = ausbeer)
+```
+
+#### Visualize Forecast
+
+```{r}
+autoplot(train)+
+  autolayer(average_model,PI = F,size=1.1,series = 'Average Model')+
+  autolayer(naive_model,PI=F,size=1.1, series='Naive Model')+
+  autolayer(seasonal_naive_model,PI=F,size=1.1,series='Seasonal Naive Model')+
+  autolayer(test)
+```
+
+### Drift Method
+
+Allow forecasts to increase or decrease over time, where the amount of change over time (called the drift) is set to be average change seen in historical data 
+
+#### Model and Forecast
+```{r}
+drift_model = rwf(train,h=42,drift = T)
+drift_model$mean
+```
+
+#### Accuracy
+
+```{r}
+accuracy(drift_model,x = ausbeer)
+```
+
+#### Visualize Forecast
+
+```{r}
+autoplot(train)+
+  autolayer(average_model,PI = F,size=1.1,series = 'Average Model')+
+  autolayer(naive_model,PI=F,size=1.1, series='Naive Model')+
+  autolayer(seasonal_naive_model,PI=F,size=1.1,series='Seasonal Naive Model')+
+  autolayer(drift_model,PI=F,size=1.1,series='Drift Model')+
+  autolayer(test)
+```
+
+## Exponential Smoothing Models
+
+Forecasts are weighted averages of past observations with the weights decaying exponentially such that recent observations get weighted more than distant observations.
+
+### Simple exponential smoothing
+
+Forecasts are calculated using weighted averages, where the weights decrease exponentially. Most recent observations get the heaviest weight.
+
+Simplest of exponential smoothing methods
+
+Suitable for forecasting data with no clear trend or seasonal pattern. 
+
+#### Model and Forecast
+
+```{r}
+ses_model = ses(train,h = 42)
+ses_model$mean
+```
+
+#### Accuracy
+
+```{r}
+accuracy(ses_model,x = ausbeer) 
+```
+
+#### Visualize Forecasts
+
+```{r}
+autoplot(train)+
+  autolayer(ses_model,series = "Simple Exponential Smoothing",PI = F, size=1.1)+
+  autolayer(test)
+```
+
+### Holt's Method
+
+Extends simple exponential smoothing to allow the forecasting of data with a trend 
+
+#### Model and Forecast
+
+```{r}
+holt_model = holt(train,h=42)
+holt_model$mean
+```
+
+#### Accuracy
+
+```{r}
+accuracy(holt_model,x=ausbeer)
+```
+
+#### Visualize Forecasts
+
+```{r}
+autoplot(train)+
+  autolayer(ses_model,series = "Simple Exponential Smoothing",PI = F, size=1.1)+
+  autolayer(holt_model,series="Holt's Method",PI=F,size=1.1)+
+  autolayer(test)
+```
+
+### Holt's Method with Damping
+
+Forecasts generally display a constant trend (increasing or decreasing) indefinitely into the future. For this reason, a damping parameter is usually included
+
+#### Model and Forecast
+
+```{r}
+holt_damped_model = holt(train,h=42,damped = T)
+holt_damped_model$mean
+```
+
+#### Accuracy
+
+```{r}
+accuracy(holt_damped_model,x=ausbeer)
+```
+
+#### Visualize Forecasts
+
+```{r}
+autoplot(train)+
+  autolayer(ses_model,series = "Simple Exponential Smoothing",PI = F, size=1.1)+
+  autolayer(holt_model,series="Holt's Method",PI=F,size=1.1)+
+  autolayer(holt_damped_model,series="Holt's Method with Damping",PI=F,size=1.1)+
+  autolayer(test)
+```
+
+### Holt-Winter's seasonal method
+
+Extends Holt's method to capture seasonality. Two types: 1.Additive method is used when seasonal variations are roughly constant 2.Multiplicative method is used when seasonal variations change in proportion to the level of the series 
+
+### Holt_Winter's Additive 
+
+#### Model and Forecast
+
+```{r}
+hw_additive = hw(train,h=42,seasonal = 'additive', damped=T)
+hw_additive$mean
+```
+
+#### Accuracy
+
+```{r}
+accuracy(hw_additive,x = ausbeer)
+```
+
+#### Visualize Forecasts
+
+```{r}
+autoplot(train)+
+  autolayer(hw_additive,series="Holt Winter's Method - Additive",PI=F)+
+  autolayer(test)
+```
+
+### Holt_Winter's Multiplicative
+
+#### Model and Forecast
+
+```{r}
+hw_multiplicative = hw(train,h=42,seasonal = 'multiplicative', damped=T)
+hw_multiplicative$mean
+```
+
+#### Accuracy
+
+```{r}
+accuracy(hw_multiplicative,x=ausbeer)
+```
+
+#### Visualize Forecasts
+
+```{r}
+autoplot(train)+
+  autolayer(hw_multiplicative,series="Holt Winter's Method - Multiplicative",PI=F)+
+  autolayer(test)
+```
+
+## ETS Models
+
+But, exponential smoothing methods are not limited to the ones examined so far. By considering variations of trend (none, additive, additive damped) and seasonal components (non, additive, multiplicative), there are nine exponential smoothing methods. And, for each of these methods, errors may be additive or multiplicative.
+
+ETS models in R are handled by ets() from library(forecast). Unlike functions such as naive(), ses(), hw() functions, the ets() function does not produce forecasts. Rather, it estimates the model parameters and returns information on the fitted model. \### ETS: AAA Let us fit an exponential smoothing model where the Errors are Additive, Trend is Additive and Seasonal component is Additive. Note the model argument in ets(). \#### Model
+
+```{r}
+ets_aaa = ets(train,model = 'AAA')
+```
+
+Summary of the model. Note, since we did not specify the damping term, ets() tried both an Additive-Damped trend and just an Additived trend and went with the option that led to a lower AICc.
+
+```{r}
+summary(ets_aaa)
+```
+
+Examine the residuals. Based on the ACF plot and a significant Ljung-Box test, residuals are not like white noise.
+
+```{r}
+checkresiduals(ets_aaa)
+```
+
+#### Forecast
+
+```{r}
+ets_aaa_forecast = forecast(ets_aaa,h=42)
+ets_aaa_forecast
+```
+
+#### Accuracy
+
+```{r}
+accuracy(ets_aaa_forecast,x = ausbeer)
+```
+
+#### Visualize Forecast
+
+```{r}
+autoplot(train)+
+  autolayer(ets_aaa_forecast,series="ETS - AAA",PI=F)+
+  autolayer(test)
+```
+
+### ETS: Automatic Selection
+
+When only the time-series is specified, and all other arguments are left at their default values, then ets() will automatically select the best model based on AICc. Compare the AICc for this model to ETS(A,A,A) above. Note that the chosen model has Multiplicative Errors, Additive Trend, and Multiplicative Seasonal. 
+
+#### Model
+
+```{r}
+ets_auto = ets(train)
+summary(ets_auto)
+```
+
+#### Forecast
+
+```{r}
+ets_auto_forecast = forecast(ets_auto,h=42)
+```
+
+#### Accuracy
+
+```{r}
+accuracy(ets_auto_forecast,x = ausbeer)
+```
+
+#### Visualize Forecast
+
+```{r}
+autoplot(train)+
+  autolayer(ets_auto_forecast,series="ETS - MAM (auto)",PI=F)+
+  autolayer(test)
+```
+
+## ARIMA
+
+Exponential Smoothing and ARIMA are the two most widely used approaches to time-series forecasting and provide complementary approaches to the problem. While Exponential Smoothing models are based on a description of trend and seasonality in the data, ARIMA models aim to describe autocorrelations in the data
+
+Since an ARMA process assumes the data is stationary, let us examine the assumption of stationarity and how to satisfy it.
+
+Stationary Process has constant mean, variance and covariance (between identically spaced data points) over time. Stationarity is an assumption of many time-series analysis procedures. However, most time-series are non-stationary Fortunately, a non-stationary process can be transformed into a (weakly) stationary process through transformations that remove trend and stabilize variance. We will stabilize variance using a Box-Cox Transformation and remove seasonality and trend using differencing
+
+### ARIMA Model
+
+Plot data to identify any unusual observations
+
+```{r}
+autoplot(train)
+```
+
+Stabilize Variance
+
+```{r}
+train2 = BoxCox(train,lambda = BoxCox.lambda(train))
+autoplot(train2)
+```
+
+The data are non-stationary, take first differences until the data are stationary
+
+```{r}
+autoplot(diff(train2,lag = 4))
+```
+
+```{r}
+autoplot(diff(diff(train2,lag = 4),lag=1))
+```
+
+Examine ACF and PACF to decide on AR (ARIMA(p,d,0) and/or MA terms (ARIMA(0,d,q))
+
+```{r}
+train2 %>%
+  diff(lag=4)%>%
+  diff(lag=1)%>%
+  ggtsdisplay()
+```
+
+Try chosen model and use AICc to search for a better model
+
+```{r}
+model1 = Arima(y = train,order = c(0,1,2),seasonal = c(0,1,1),lambda = BoxCox.lambda(train))
+model1
+```
+
+```{r}
+ggtsdisplay(residuals(model1))
+```
+
+Trying out an alternative model
+
+```{r}
+model2 = Arima(y = train,order = c(0,1,0),seasonal = c(0,1,1),lambda = BoxCox.lambda(train))
+ggtsdisplay(residuals(model2))
+```
+
+Check residuals by plotting. If they do not look like white noise, try a modified model
+
+```{r}
+checkresiduals(model1)
+```
+
+```{r}
+checkresiduals(model2)
+```
+
+The residuals look like white noise, calculate forecasts
+
+```{r}
+autoplot(forecast(model1,h = 42),PI=F)+
+  autolayer(test,size=1)
+```
+
+```{r}
+model1_forecast = forecast(model1,h=42)
+accuracy(f = model1_forecast,x = ausbeer)
+```
+
+### ARIMA - Automatic Model Selection
+
+Use auto.arima to pick the best model based on AICc. Sometimes auto.arima() does not yield an optimal solution as it uses computational shortcuts. By setting stepwise and approximation to False, we will ensure a more extensive search.
+
+As it turns out, the automatic process picked the model we manually configured.
+
+```{r}
+model_auto = auto.arima(y = train,d = 1,D = 1,stepwise = F,approximation = F)
+model_auto
+```
+
+#### Comparing Forecasting Models
+
+Let us compare all the models in terms of accuracy metrics on the test sample.
+
+```{r}
+rbind(average_model = accuracy(f = average_model,x = ausbeer)[2,],
+      naive_model = accuracy(f = naive_model,x = ausbeer)[2,],
+      seasonal_naive_model = accuracy(f = seasonal_naive_model,x = ausbeer)[2,],
+      drift_model = accuracy(f = drift_model,x = ausbeer)[2,],
+      ses_model = accuracy(f = ses_model,x = ausbeer)[2,],
+      holt_model = accuracy(f = holt_model,x = ausbeer)[2,],
+      holt_damped_model = accuracy(f = holt_damped_model,x = ausbeer)[2,],
+      hw_additive_model = accuracy(f = hw_additive,x = ausbeer)[2,],
+      hw_multiplicative = accuracy(f = hw_multiplicative,x = ausbeer)[2,],
+      ets_aaa = accuracy(ets_aaa_forecast,x = ausbeer)[2,],
+      ets_auto = accuracy(ets_auto_forecast,x = ausbeer)[2,],
+      arima = accuracy(model1_forecast,x=ausbeer)[2,]
+      )
+```
+
+```{r}
+autoplot(train, color='sienna')+
+  autolayer(test,size=1.05,color='seagreen2')+
+  autolayer(average_model,series = 'Average Model',PI=F)+
+  autolayer(naive_model,series = 'Naive Model',PI=F)+
+  autolayer(seasonal_naive_model,series = 'Seasonal Naive Model',PI=F)+
+  autolayer(drift_model,series = 'Seasonal Naive Model',PI=F)+
+  autolayer(ses_model,series = 'Seasonal Naive Model',PI=F)+
+  autolayer(holt_model,series = 'Holt',PI=F)+
+  autolayer(hw_additive,series = 'Holt Winter Additive',PI=F)+
+  autolayer(hw_multiplicative,series = 'Holt Winter Multiplicative',PI=F)+
+  autolayer(ets_aaa_forecast,series = 'ETS AAA',PI=F)+
+  autolayer(ets_auto_forecast,series = 'ETS Auto',PI=F)+
+  autolayer(model1_forecast,series = 'ARIMA',PI=F)
+```
